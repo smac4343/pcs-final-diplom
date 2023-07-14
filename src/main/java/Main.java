@@ -1,43 +1,35 @@
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import java.io.*;
-import java.util.Arrays;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        // Initialize and test search engine
         BooleanSearchEngine engine = new BooleanSearchEngine(new File("pdfs"));
-        System.out.println(engine.search("бизнес"));
+        System.out.println(engine.search("DevOps"));
 
-        // Initialize server socket
-        try (ServerSocket serverSocket = new ServerSocket(8989)) { 
-            System.out.println("Server started...");
-
-            while (true) { 
-                // Handle each client connection
+        try (ServerSocket serverSocket = new ServerSocket(8989);) {
+            while (true) {
                 try (
-                    Socket socket = serverSocket.accept();
-                    BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                    PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                        Socket socket = serverSocket.accept();
+                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                        PrintWriter out = new PrintWriter(socket.getOutputStream());
                 ) {
-                    // Read the client's request and perform the search
-                    String request = in.readLine();
-                    String response = new GsonBuilder()
-                                            .setPrettyPrinting()
-                                            .create()
-                                            .toJson(engine.search(request));
-
-                    // Send response to client
-                    out.println(response);
-                } catch (IOException e) {
-                    System.out.println("Error handling client connection: " + e.getMessage());
+                    List<PageEntry> list = null;
+                    try {
+                        list = engine.search(in.readLine());
+                    } catch (RuntimeException e) {
+                        out.println("Такого слова нет");
+                        continue;
+                    }
+                    Gson gson = new Gson();
+                    String json = gson.toJson(list);
+                    out.println(json);
                 }
             }
         } catch (IOException e) {
-            System.out.println("Unable to start server: " + e.getMessage());
+            System.out.println("Не могу стартовать сервер");
             e.printStackTrace();
         }
     }
