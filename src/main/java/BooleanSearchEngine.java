@@ -8,26 +8,21 @@ import java.io.IOException;
 import java.util.*;
 
 public class BooleanSearchEngine implements SearchEngine {
-    private Map<String, TreeSet<PageEntry>> map = new HashMap<>();
+    private Map<String, List<PageEntry>> wordsMap;
 
     public BooleanSearchEngine(File pdfsDir) throws IOException {
-        List<File> files = new ArrayList<>();
-        Collections.addAll(files, Objects.requireNonNull(pdfsDir.listFiles()));
-        for (File file : files) {
-            PdfDocument doc = null;
-            try {
-                doc = new PdfDocument(new PdfReader(file));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            int numberOfPages = doc.getNumberOfPages();
+        wordsMap = new HashMap<>();
 
-            for (int i = 1; i <= numberOfPages; i++) {
-                PdfPage page = doc.getPage(i);
-                var text = PdfTextExtractor.getTextFromPage(page);
-                var words = text.split("\\P{IsAlphabetic}+");
+        for (File pdf : pdfsDir.listFiles()) {
+            var doc = new PdfDocument(new PdfReader(pdf));
+            for (int pageNum = 1; pageNum <= doc.getNumberOfPages(); pageNum++) {
+                PdfPage page = doc.getPage(pageNum);
+                String text = PdfTextExtractor.getTextFromPage(page);
+                String[] words = text.split("\\P{IsAlphabetic}+");
+
                 Map<String, Integer> freqs = new HashMap<>();
-                for (String word : words) {
+
+                for (var word : words) {
                     if (word.isEmpty()) {
                         continue;
                     }
@@ -35,25 +30,26 @@ public class BooleanSearchEngine implements SearchEngine {
                     freqs.put(word, freqs.getOrDefault(word, 0) + 1);
                 }
 
-                for (Map.Entry<String, Integer> stringIntegerEntry : freqs.entrySet()) {
-                    if (!map.containsKey(stringIntegerEntry.getKey())) {
-                        map.put(stringIntegerEntry.getKey(), new TreeSet<>());
-                        map.get(stringIntegerEntry.getKey()).add(new PageEntry(file.getName(), i, stringIntegerEntry.getValue()));
+                for (var entry : freqs.entrySet()) {
+                    List<PageEntry> searchingResult;
+                    if (!wordsMap.containsKey(entry.getKey())) {
+                        searchingResult = new ArrayList<>();
+
                     } else {
-                        map.get(stringIntegerEntry.getKey()).add(new PageEntry(file.getName(), i, stringIntegerEntry.getValue()));
+                        searchingResult = wordsMap.get(entry.getKey());
                     }
+                    searchingResult.add(new PageEntry(pdf.getName(), pageNum, entry.getValue()));
+                    Collections.sort(searchingResult, Collections.reverseOrder());
+                    wordsMap.put(entry.getKey(), searchingResult);
                 }
             }
-        }
 
+        }
     }
 
     @Override
     public List<PageEntry> search(String word) {
-        Set<PageEntry> pageEntries = map.get(word);
-        if (pageEntries == null) {
-            throw new RuntimeException("Такое слово не найдено");
-        }
-        return new ArrayList<>(pageEntries);
+
+        return wordsMap.get(word.toLowerCase());
     }
 }
